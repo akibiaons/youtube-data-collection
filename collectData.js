@@ -1,12 +1,28 @@
 const axios = require("axios");
 const { channel } = require("diagnostics_channel");
 const fs = require("fs");
+require("dotenv").config();
 
-const apiKey = "AIzaSyCD_egt0HiE17gSsu3IRIMaQE1LKaxfwcU";
-const channelId = "https://www.youtube.com/@ImanGadzhi";
-const outputFile = `${channelId}_to_million.json`;
+const apiKey = process.env.API_KEY_YOUTUBE; // Replace with your YouTube Data API key
+const username = "ImanGadzhi"; // Replace with the channel's username or custom name
+// const outputFile = `${channelId}_to_million.json`;
 
-// Function for collecting overall channel scripts
+// Getting the target's channel ID
+const getChannelId = async (username, apiKey) => {
+  try {
+    const url = `https://www.googleapis.com/youtube/v3/channels?part=id&forUsername=${username}&key=${apiKey}`;
+    const response = await axios.get(url);
+    const channelId = response.data.items[0].id;
+    console.log(`Channel ID: ${channelId}`);
+    return channelId;
+  } catch (error) {
+    console.error("Error fetching channel ID:", error);
+  }
+};
+
+getChannelId(username, apiKey);
+
+// Function for collecting overall channel stats
 const getChannelStats = async (channelId, apiKey) => {
   try {
     const url = `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelId}&key=${apiKey}`;
@@ -17,7 +33,7 @@ const getChannelStats = async (channelId, apiKey) => {
   }
 };
 
-// Function for collecting a channels videos
+// Function for collecting a channel's videos
 const getVideos = async (channelId, apiKey, pageToken = "") => {
   try {
     const url = `https://www.googleapis.com/youtube/v3/search?key=${apiKey}&channelId=${channelId}&part=snippet,id&order=date&maxResults=50&pageToken=${pageToken}`;
@@ -38,14 +54,14 @@ const getVideoStatistics = async (videoId, apiKey) => {
   }
 };
 
-// Collect and push data into JSON which I'll pull intro a graph later...
+// Collect and push data into JSON
 const collectData = async (channelId, apiKey) => {
   let allData = [];
   let nextPageToken = "";
 
   while (true) {
     const channelStats = await getChannelStats(channelId, apiKey);
-    const subCount = parseInt(channelStats.subCount, 10);
+    const subCount = parseInt(channelStats.subscriberCount, 10);
 
     if (subCount >= 1000000) {
       break;
@@ -57,7 +73,7 @@ const collectData = async (channelId, apiKey) => {
     for (const video of videos) {
       if (video.id.kind === "youtube#video") {
         const videoId = video.id.videoId;
-        const statistics = await getVideoStatistics(videoId, apikey);
+        const statistics = await getVideoStatistics(videoId, apiKey);
         allData.push({
           videoId,
           title: video.snippet.title,
@@ -72,8 +88,18 @@ const collectData = async (channelId, apiKey) => {
     }
   }
 
-  fs.writeFileSync(outputFile, JSON.stringify(allData, null, 2));
+  fs.writeFileSync(
+    `${channelId}_to_million.json`,
+    JSON.stringify(allData, null, 2)
+  );
   console.log("Data collection completed");
 };
 
-collectData(channelId, apiKey);
+const main = async () => {
+  const channelId = await getChannelId(username, apiKey);
+  if (channelId) {
+    await collectData(channelId, apiKey);
+  }
+};
+
+main();
