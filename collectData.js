@@ -13,7 +13,10 @@ const getChannelId = async (username, apiKey) => {
     console.log(`Channel ID: ${channelId}`);
     return channelId;
   } catch (error) {
-    console.error("Error fetching channel ID:", error);
+    console.error(
+      "Error fetching channel ID:",
+      error.response ? error.response.data : error.message
+    );
   }
 };
 
@@ -24,7 +27,10 @@ const getChannelStats = async (channelId, apiKey) => {
     const response = await axios.get(url);
     return response.data.items[0].statistics;
   } catch (error) {
-    console.error("Error fetching channel stats:", error);
+    console.error(
+      "Error fetching channel stats:",
+      error.response ? error.response.data : error.message
+    );
   }
 };
 
@@ -35,7 +41,10 @@ const getVideos = async (channelId, apiKey, pageToken = "") => {
     const response = await axios.get(url);
     return response.data;
   } catch (error) {
-    console.error("Error fetching video data:", error);
+    console.error(
+      "Error fetching video data:",
+      error.response ? error.response.data : error.message
+    );
   }
 };
 
@@ -45,7 +54,10 @@ const getVideoStatistics = async (videoId, apiKey) => {
     const response = await axios.get(url);
     return response.data.items[0].statistics;
   } catch (error) {
-    console.error("Error fetching video stats:", error);
+    console.error(
+      "Error fetching video stats:",
+      error.response ? error.response.data : error.message
+    );
   }
 };
 
@@ -56,38 +68,59 @@ const collectData = async (channelId, apiKey) => {
 
   while (true) {
     const channelStats = await getChannelStats(channelId, apiKey);
+    if (!channelStats) {
+      console.error("Failed to fetch channel stats, skipping iteration.");
+      break;
+    }
+
     const subCount = parseInt(channelStats.subscriberCount, 10);
+    console.log(`Current subscriber count: ${subCount}`);
 
     if (subCount >= 1000000) {
       break;
     }
 
     const videosData = await getVideos(channelId, apiKey, nextPageToken);
-    const videos = videosData ? videosData.items : [];
+    if (!videosData || !videosData.items) {
+      console.error("Failed to fetch videos data, skipping iteration.");
+      break;
+    }
+
+    const videos = videosData.items;
+    console.log(`Fetched ${videos.length} videos`);
 
     for (const video of videos) {
       if (video.id.kind === "youtube#video") {
         const videoId = video.id.videoId;
         const statistics = await getVideoStatistics(videoId, apiKey);
-        allData.push({
-          videoId,
-          title: video.snippet.title,
-          publishedAt: video.snippet.publishedAt,
-          statistics,
-        });
+        if (statistics) {
+          allData.push({
+            videoId,
+            title: video.snippet.title,
+            publishedAt: video.snippet.publishedAt,
+            statistics,
+          });
+          console.log(`Collected data for video ID: ${videoId}`);
+        } else {
+          console.error(`Failed to fetch statistics for video ID: ${videoId}`);
+        }
       }
     }
-    nextPageToken = videosData ? videosData.nextPageToken : null;
+    nextPageToken = videosData.nextPageToken;
     if (!nextPageToken) {
       break;
     }
   }
 
-  fs.writeFileSync(
-    `${channelId}_to_million.json`,
-    JSON.stringify(allData, null, 2)
-  );
-  console.log("Data collection completed");
+  if (allData.length > 0) {
+    fs.writeFileSync(
+      `${channelId}_to_million.json`,
+      JSON.stringify(allData, null, 2)
+    );
+    console.log("Data collection completed and written to JSON file.");
+  } else {
+    console.error("No data collected, nothing to write to JSON file.");
+  }
 };
 
 const main = async () => {
