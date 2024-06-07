@@ -1,26 +1,21 @@
 const axios = require("axios");
-const { channel } = require("diagnostics_channel");
 const fs = require("fs");
-require("dotenv").config();
+require("dotenv").config(); // Load environment variables from .env file
 
-const apiKey = process.env.API_KEY_YOUTUBE; // Replace with your YouTube Data API key
+const apiKey = process.env.API_KEY_YOUTUBE; // Load the YouTube Data API key from the environment variable
 const username = "ImanGadzhi"; // Replace with the channel's username or custom name
-// const outputFile = `${channelId}_to_million.json`;
 
-// Getting the target's channel ID
 const getChannelId = async (username, apiKey) => {
   try {
-    const url = `https://www.googleapis.com/youtube/v3/channels?part=id&forUsername=${username}&key=${apiKey}`;
+    const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${username}&type=channel&key=${apiKey}`;
     const response = await axios.get(url);
-    const channelId = response.data.items[0].id;
+    const channelId = response.data.items[0].id.channelId;
     console.log(`Channel ID: ${channelId}`);
     return channelId;
   } catch (error) {
     console.error("Error fetching channel ID:", error);
   }
 };
-
-getChannelId(username, apiKey);
 
 // Function for collecting overall channel stats
 const getChannelStats = async (channelId, apiKey) => {
